@@ -1,6 +1,6 @@
 use num::FromPrimitive;
 
-use crate::{Error, Result};
+use crate::{constants::QOI_MAGIC, Error, Result};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
@@ -25,8 +25,7 @@ pub struct Header {
 }
 
 impl Header {
-    const MAGIC: &'static [u8; 4] = b"qoif";
-    const SIZE: usize = 14;
+    pub(crate) const SIZE: usize = 14;
 
     pub(crate) fn new(
         width: u32,
@@ -49,7 +48,7 @@ impl Header {
             return Err(Error::InvalidHeaderSize(bytes.len()));
         }
 
-        if &bytes[0..4] != Self::MAGIC {
+        if &bytes[0..4] != QOI_MAGIC {
             return Err(Error::InvalidMagic(bytes[0..4].try_into().unwrap()));
         }
 
@@ -71,7 +70,7 @@ impl Header {
     pub(crate) fn as_bytes(&self) -> [u8; Self::SIZE] {
         let mut bytes = [0; Self::SIZE];
 
-        bytes[0..4].copy_from_slice(Self::MAGIC);
+        bytes[0..4].copy_from_slice(QOI_MAGIC);
         bytes[4..8].copy_from_slice(&self.width.to_be_bytes());
         bytes[8..12].copy_from_slice(&self.height.to_be_bytes());
         bytes[12] = self.channels as u8;
@@ -96,7 +95,7 @@ mod tests {
 
         assert_eq!(
             header.as_bytes(),
-            [0x71, 0x6f, 0x69, 0x66, 0, 0, 0x04, 0, 0, 0, 0x02, 0, 3, 1]
+            [0x71, 0x6f, 0x69, 0x66, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x02, 0x00, 0x03, 0x01]
         );
     }
 
@@ -106,24 +105,25 @@ mod tests {
             0x71, 0x6f, 0x69, 0x66, 0, 0, 0x04, 0x01, 0, 0, 0x02, 0, 4, 1,
         ];
 
-        let header = Header {
-            width: 1025,
-            height: 512,
-            channels: ColorChannel::Rgba,
-            color_space: ColorSpace::AllLinear,
-        };
-
-        assert_eq!(Header::try_from_bytes(bytes), Ok(header));
+        assert!(matches!(
+            Header::try_from_bytes(bytes),
+            Ok(Header {
+                width: 1025,
+                height: 512,
+                channels: ColorChannel::Rgba,
+                color_space: ColorSpace::AllLinear,
+            })
+        ));
     }
 
     #[test]
     fn bytes_to_header_invalid_size() {
         let bytes = [0x71, 0x6f, 0x69, 0x66, 0, 0, 0x04, 0x01, 0];
 
-        assert_eq!(
+        assert!(matches!(
             Header::try_from_bytes(bytes),
             Err(Error::InvalidHeaderSize(9))
-        );
+        ));
     }
 
     #[test]
@@ -132,10 +132,10 @@ mod tests {
             0x70, 0x6f, 0x69, 0x66, 0, 0, 0x04, 0x01, 0, 0, 0x02, 0, 9, 1,
         ];
 
-        assert_eq!(
+        assert!(matches!(
             Header::try_from_bytes(bytes),
             Err(Error::InvalidMagic([0x70, 0x6f, 0x69, 0x66]))
-        );
+        ));
     }
 
     #[test]
@@ -144,10 +144,10 @@ mod tests {
             0x71, 0x6f, 0x69, 0x66, 0, 0, 0x04, 0x01, 0, 0, 0x02, 0, 9, 1,
         ];
 
-        assert_eq!(
+        assert!(matches!(
             Header::try_from_bytes(bytes),
             Err(Error::InvalidChannelNumber(9))
-        );
+        ));
     }
 
     #[test]
@@ -156,9 +156,9 @@ mod tests {
             0x71, 0x6f, 0x69, 0x66, 0, 0, 0x04, 0x01, 0, 0, 0x02, 0, 3, 4,
         ];
 
-        assert_eq!(
+        assert!(matches!(
             Header::try_from_bytes(bytes),
             Err(Error::InvalidColorspace(4))
-        );
+        ));
     }
 }

@@ -1,6 +1,6 @@
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Error {
     InvalidHeaderSize(usize),
     InvalidMagic([u8; 4]),
@@ -12,7 +12,7 @@ pub enum Error {
         header_size: usize,
     },
 
-    IoError(std::io::ErrorKind),
+    IoError(std::io::Error),
 }
 
 impl std::fmt::Display for Error {

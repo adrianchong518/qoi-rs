@@ -9,7 +9,10 @@ looks very simple given its performance.
 
 ## Targets
 
-- [ ] Fully implement encoding and decoding by the spec
+- [ ] Fully implement encoding and decoding by the
+      [specification](https://qoiformat.org/qoi-specification.pdf)
+  - [x] Encoding
+  - [ ] Decoding
 - [ ] Create a CLI tool to convert to and from different image file formats
   - [ ] PNG
   - [ ] TIFF

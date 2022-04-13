@@ -1,3 +1,4 @@
+mod constants;
 mod encode;
 mod error;
 mod header;
