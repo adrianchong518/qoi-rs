@@ -3,11 +3,29 @@ use crate::{
         QOI_END_MARKER, QOI_OP_DIFF, QOI_OP_INDEX, QOI_OP_LUMA, QOI_OP_RGB, QOI_OP_RGBA, QOI_OP_RUN,
     },
     header::{ColorChannel, ColorSpace, Header},
+    io::Writer,
     pixel::{Pixel, SupportedChannels},
-    writer::Writer,
     Error, Result,
 };
 
+/// Encodes the provided `pixels` data with `width`, `height` and `color_space` information into the
+/// QOI format, then writing it into the provided `writer`.
+///
+/// The function returns the number of bytes written to the `writer`.
+///
+/// This function implements all `QOI_OP`s specified in the specification and will emit the entire
+/// file to the `writer`, including the header, `QOI_OP`s and the end marker.
+///
+/// The number of `channels` included in the header is specified by the generic constant `N`, which
+/// controls the number of channels a pixel will have, either [`ColorChannel::Rgb`] (`3`) or
+/// [`ColorChannel::Rgba`] (`4`).
+///
+/// # Errors
+/// This function returns `Err` in one of the following cases:
+///
+/// 1. Either [`Writer::write_byte`] or [`Writer::write_from_slice`] fails.
+/// 2. The provided `width` and `height` differs from the length of `pixels`
+///    ([`Error::UnmatchedDataSize`])
 pub fn encode<const N: usize>(
     writer: &mut impl Writer,
     pixels: &[Pixel<N>],
@@ -42,9 +60,15 @@ where
     }
 
     let mut previous_pixel = Pixel::<N>::new_initial();
+
+    // A running "hash set" of all seen pixels
     let mut seen_pixels = [Pixel::<4>::default(); 64];
+
+    // Number of continuous run of the same pixel
     let mut run = 0u8;
 
+    /// A helper function that emits an `QOI_OP_RUN` with a provided `run` value to `w` and reset
+    /// `run`. This function returns `Err` if [`Writer::write_byte`] fails.
     fn emit_qoi_op_run(w: &mut impl Writer, run: &mut u8) -> Result<usize> {
         debug_assert!(*run > 0);
 
@@ -54,7 +78,10 @@ where
         Ok(written)
     }
 
+    // Encode each pixel
     for pixel in pixels {
+        // This is an evil hack to "break out of a block" as an alternative to unstable feature
+        // `label_break_value`
         (|| -> Result<()> {
             // Check if the previous pixel is the same
             if *pixel == previous_pixel {
@@ -74,6 +101,7 @@ where
                 written += emit_qoi_op_run(writer, &mut run)?;
             }
 
+            // Calculate the index of the `pixel` with the special hash function
             let index = pixel.index_hash();
 
             // Check if the current `pixel` can be indexed in the array
@@ -94,7 +122,7 @@ where
                 return Ok(());
             }
 
-            // Calculate the difference for each channels
+            // Calculate the difference for each channels, namely `dr`, `dg` and `db`
             let diff_red = pixel.red().wrapping_sub(previous_pixel.red());
             let diff_green = pixel.green().wrapping_sub(previous_pixel.green());
             let diff_blue = pixel.blue().wrapping_sub(previous_pixel.blue());
@@ -115,12 +143,16 @@ where
                 }
             }
 
+            // Calculate `dr_dg` and `db_dg` as by the specification
             let diff_red_green = diff_red.wrapping_sub(diff_green);
             let diff_blue_green = diff_blue.wrapping_sub(diff_green);
 
             // Attempt to use `QOI_OP_LUMA`
             {
+                // Bias `dg` by `32`
                 let diff_green = diff_green.wrapping_add(32);
+
+                // Bias `dr_dg` and `db_dg` by `8`
                 let diff_red_green = diff_red_green.wrapping_add(8);
                 let diff_blue_green = diff_blue_green.wrapping_add(8);
 

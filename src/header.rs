@@ -41,13 +41,7 @@ impl Header {
         }
     }
 
-    pub(crate) fn try_from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self> {
-        let bytes = bytes.as_ref();
-
-        if bytes.len() != Self::SIZE {
-            return Err(Error::InvalidHeaderSize(bytes.len()));
-        }
-
+    pub(crate) fn from_bytes(bytes: [u8; 14]) -> Result<Self> {
         if &bytes[0..4] != QOI_MAGIC {
             return Err(Error::InvalidMagic(bytes[0..4].try_into().unwrap()));
         }
@@ -57,7 +51,7 @@ impl Header {
         let channels =
             ColorChannel::from_u8(bytes[12]).ok_or(Error::InvalidChannelNumber(bytes[12]))?;
         let color_space =
-            ColorSpace::from_u8(bytes[13]).ok_or(Error::InvalidColorspace(bytes[13]))?;
+            ColorSpace::from_u8(bytes[13]).ok_or(Error::InvalidColorSpace(bytes[13]))?;
 
         Ok(Header {
             width,
@@ -106,7 +100,7 @@ mod tests {
         ];
 
         assert!(matches!(
-            Header::try_from_bytes(bytes),
+            Header::from_bytes(bytes),
             Ok(Header {
                 width: 1025,
                 height: 512,
@@ -117,23 +111,13 @@ mod tests {
     }
 
     #[test]
-    fn bytes_to_header_invalid_size() {
-        let bytes = [0x71, 0x6f, 0x69, 0x66, 0, 0, 0x04, 0x01, 0];
-
-        assert!(matches!(
-            Header::try_from_bytes(bytes),
-            Err(Error::InvalidHeaderSize(9))
-        ));
-    }
-
-    #[test]
     fn bytes_to_header_invalid_magic() {
         let bytes = [
             0x70, 0x6f, 0x69, 0x66, 0, 0, 0x04, 0x01, 0, 0, 0x02, 0, 9, 1,
         ];
 
         assert!(matches!(
-            Header::try_from_bytes(bytes),
+            Header::from_bytes(bytes),
             Err(Error::InvalidMagic([0x70, 0x6f, 0x69, 0x66]))
         ));
     }
@@ -145,20 +129,20 @@ mod tests {
         ];
 
         assert!(matches!(
-            Header::try_from_bytes(bytes),
+            Header::from_bytes(bytes),
             Err(Error::InvalidChannelNumber(9))
         ));
     }
 
     #[test]
-    fn bytes_to_header_invalid_colorspace() {
+    fn bytes_to_header_invalid_color_space() {
         let bytes = [
             0x71, 0x6f, 0x69, 0x66, 0, 0, 0x04, 0x01, 0, 0, 0x02, 0, 3, 4,
         ];
 
         assert!(matches!(
-            Header::try_from_bytes(bytes),
-            Err(Error::InvalidColorspace(4))
+            Header::from_bytes(bytes),
+            Err(Error::InvalidColorSpace(4))
         ));
     }
 }

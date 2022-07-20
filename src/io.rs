@@ -12,6 +12,6 @@ impl<T: std::io::Write> Writer for T {
     fn write_from_slice(&mut self, bytes: &[u8]) -> Result<usize> {
         self.write_all(bytes)
             .map(|_| bytes.len())
-            .map_err(|err| Error::IoError(err))
+            .map_err(Error::IoError)
     }
 }
