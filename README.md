@@ -7,6 +7,22 @@ This is only a hobby project that I took up for fun, do not expect any
 "production-quality" code here. The *QOI Format* was very interesting to me and
 looks very simple given its performance.
 
+## Building
+
+If you are fancy and have `nix`, you build the project with
+
+```bash
+nix build
+nix run
+```
+
+Or with `cargo` using
+
+```bash
+cargo build
+cargo run
+```
+
 ## Targets
 
 - [ ] Fully implement encoding and decoding by the

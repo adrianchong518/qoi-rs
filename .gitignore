@@ -1,1 +1,6 @@
+.direnv
+.vscode
+
 /target
+result
+result-bin
