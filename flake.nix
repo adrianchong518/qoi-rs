@@ -1,38 +1,72 @@
 {
   inputs = {
-    cargo2nix.url = "github:cargo2nix/cargo2nix/release-0.11.0";
-    flake-utils.follows = "cargo2nix/flake-utils";
-    nixpkgs.follows = "cargo2nix/nixpkgs";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
     flake-compat = {
-      url = github:edolstra/flake-compat;
+      url = "github:edolstra/flake-compat";
       flake = false;
+    };
+
+    flake-utils = {
+      url = "github:numtide/flake-utils";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    naersk = {
+      url = "github:nmattia/naersk";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, cargo2nix, ... }:
+  outputs = { self, nixpkgs, flake-utils, naersk, rust-overlay, ... }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = (import nixpkgs) {
+          inherit system;
+          overlays = [
+            rust-overlay.overlays.default
+          ];
+        };
 
-  flake-utils.lib.eachDefaultSystem (system:
-    let
-      pkgs = import nixpkgs {
-        inherit system;
-        overlays = [ cargo2nix.overlays.default ];
-      };
+        rust = pkgs.rust-bin.stable.latest.default;
+        rust-dev = rust.override {
+          extensions = [ "rust-src" ];
+        };
 
-      rustPkgs = pkgs.rustBuilder.makePackageSet {
-        rustVersion = "1.61.0";
-        packageFun = import ./Cargo.nix;
-      };
-    in
-    rec {
-      packages.qoi-rs = (rustPkgs.workspace.qoi-rs {}).bin;
-      packages.default = packages.qoi-rs;
+        naersk-lib = pkgs.callPackage naersk {
+          cargo = rust;
+          rustc = rust;
+        };
 
-      devShell = rustPkgs.workspaceShell {
-        nativeBuildInputs = with pkgs; [
-          cargo2nix.packages.${system}.default
-        ];
-      };
-    }
-  );
+        src = ./.;
+      in
+      rec {
+        packages.qoi-rs = naersk-lib.buildPackage {
+          inherit src;
+          pname = "qoi-rs";
+        };
+        packages.default = packages.qoi-rs;
+
+        apps.qoi-rs = flake-utils.lib.mkApp {
+          drv = packages.qoi-rs;
+        };
+        apps.default = apps.qoi-rs;
+
+        devShell = pkgs.mkShell {
+          buildInputs = with pkgs; [ ];
+
+          nativeBuildInputs = with pkgs; [
+            rust-dev
+            rust-analyzer
+
+            rnix-lsp
+          ];
+        };
+      }
+    );
 }
